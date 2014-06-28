@@ -38,37 +38,58 @@
           <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
         </div>
 
-        <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+        <h1>
+<a name="backupld" class="anchor" href="#backupld"><span class="octicon octicon-link"></span></a>backupld</h1>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<h2>
+<a name="what" class="anchor" href="#what"><span class="octicon octicon-link"></span></a>What?</h2>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
-</code></pre>
+<p>Backup framework for LemonDigits.com. Requires <a href="https://attic-backup.org/">Attic</a>.</p>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
+<h2>
+<a name="how" class="anchor" href="#how"><span class="octicon octicon-link"></span></a>How?</h2>
 
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+<p>Attic is a great tool that does all the magic we need, but you have to run it with certain configuration options on the command line. Rather than specify these in a crontab and flood it with multiple entries for all the different tweaks we might want to do, I wrote a wrapper script to do it. </p>
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
+<p>The aim of this program is to provide functionality and configurability to the backup jobs on top of that which Attic provides. This includes a more detailed log file, weekly validity checks and email notifications. It's also written to depend on the use of SSH keys when connecting to the remote host (where the backups are stored), to keep your data safe.</p>
 
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
+<h2>
+<a name="to-install" class="anchor" href="#to-install"><span class="octicon octicon-link"></span></a>To install</h2>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<p>Dependencies:</p>
 
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+<ul>
+<li>
+<a href="https://attic-backup.org/">Attic</a> (obviously)</li>
+<li>
+<a href="https://github.com/Joeasaurus/cpfb">cpfb</a> for parsing the config
 
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
+<ul>
+<li>
+<em>Note</em>: As cpfb depends on bash v4.2, you will need to run backupld in 4.2</li>
+</ul>
+</li>
+<li>cURL for sending emails (via <a href="http://mailgun.com">Mailgun</a> or <a href="http://mandrill.com">Mandrill</a>)</li>
+<li>base64 (from <a href="https://www.gnu.org/software/coreutils/">coreutils</a>) for encoding the log for attaching to emails.</li>
+<li>m4 for providing macros in custom message body and subject title</li>
+<li>mktemp for creating a temporary file to log into</li>
+</ul><p>You need to install Attic on both hosts for it to work. Attic requires Python 3+, which I got from PUIAS on CentOS 6.5 following these steps:</p>
 
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
+<ol>
+<li>Get the <a href="http://linuxsysconfig.com/2013/03/running-multiple-python-versions-on-centos6rhel6sl6/">PUIAS repo</a>
+</li>
+<li><code>sudo yum install python3 python3-devel python3-setuptools</code></li>
+<li><code>sudo easy_install-3.3 -U pip</code></li>
+<li><code>sudo pip install Attic</code></li>
+</ol><p>Once you've got this down, just stick the 'backupld' script somewhere useful like '/usr/local/bin' and stick it's config anywhere you like (I usually go for /etc/backupld.conf). You need cpfb to be in your path as well so backupld can find it.</p>
 
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<p>For the SSH key to work, you will need to configure a Host entry in your SSH 'config' file. There is an example included in the repository.</p>
+
+<p>Finally, here's an example 4AM crontab entry:</p>
+
+<p><code>0 4 * * * /usr/local/bin/bash-4.2 /usr/local/bin/backupld /etc/backupld.conf</code></p>
+
+<p>Released under the <a href="http://opensource.org/licenses/MIT">MIT license</a></p>
       </section>
 
     </div>
