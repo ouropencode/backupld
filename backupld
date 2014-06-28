@@ -1,0 +1,173 @@
+# backupld - A backup framework for LemonDigits.com
+# Author: Joe Eaves
+# Start Date: 12/03/14
+
+# Dependencies / Setup
+. cpfb
+TODAY_DATE="$(date +%Y%m%d)"
+FAIL_COUNT=0
+LOG="$(mktemp /tmp/backupld_XXXXX)"
+parseConfig "$1" >> "$LOG" || let FAIL_COUNT+=1
+
+# Check backup_name specials
+if [[ "$BACKUP_NAME" == "date" ]]; then
+	BACKUP_NAME="$TODAY_DATE"
+fi
+
+# Logic
+createBackup() {
+	echo "--- [Create] Backup for $1::$2" >> "$LOG"
+	if $(attic create --stats "$BACKUP_HOST:$1.attic::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp >> "$LOG" 2>&1); then
+		echo "--- [Create] Completed successfully" >> "$LOG"
+		return 0
+	else
+		echo "--- [Create] Completed unsuccessfully" >> "$LOG"
+		let FAIL_COUNT+=1
+		return 1
+	fi
+}
+
+pruneBackup() {
+	echo "--- [Prune] Backup for $1::$2" >> "$LOG"
+	local keeps=
+	local hourly=
+	local daily=
+	local weekly=
+	local monthly=
+	[[ ${PRUNE_HOURLY[default]} ]] && hourly="-H ${PRUNE_HOURLY[default]}"
+	[[ ${PRUNE_HOURLY[$1]} ]] && hourly="-H ${PRUNE_HOURLY[$1]}"
+	[[ ${hourly: -1} -eq 0 ]] && hourly=
+	keeps="$hourly"
+	[[ ${PRUNE_DAILY[default]} ]] && daily="-d ${PRUNE_DAILY[default]}"
+	[[ ${PRUNE_DAILY[$1]} ]] && daily="-d ${PRUNE_DAILY[$1]}"
+	[[ ${daily: -1} -eq 0 ]] && daily=
+	keeps="$keeps $daily"
+	[[ ${PRUNE_WEEKLY[default]} ]] && weekly="-w ${PRUNE_WEEKLY[default]}"
+	[[ ${PRUNE_WEEKLY[$1]} ]] && weekly="-w ${PRUNE_WEEKLY[$1]}"
+	[[ ${weekly: -1} -eq 0 ]] && weekly=
+	keeps="$keeps $weekly"
+	[[ ${PRUNE_MONTHLY[default]} ]] && monthly="-m ${PRUNE_MONTHLY[default]}"
+	[[ ${PRUNE_MONTHLY[$1]} ]] && monthly="-m ${PRUNE_MONTHLY[$1]}"
+	[[ ${monthly: -1} -eq 0 ]] && monthly=
+	keeps="$keeps $monthly"
+	[[ ${PRUNE_YEARLY[default]} ]] && yearly="-y ${PRUNE_YEARLY[default]}"
+	[[ ${PRUNE_YEARLY[$1]} ]] && yearly="-y ${PRUNE_YEARLY[$1]}"
+	[[ ${yearly: -1} -eq 0 ]] && yearly=
+	keeps="$keeps $yearly"
+	if $(attic prune -v "$BACKUP_HOST:$1.attic" $keeps >> "$LOG" 2>&1); then
+		echo "--- [Prune] Completed successfully" >> "$LOG"
+		return 0
+	else
+		echo "--- [Prune] Completed unsuccessfully" >> "$LOG"
+		let FAIL_COUNT+=1
+		return 1
+	fi
+}
+
+checkBackup() {
+	echo "--- [Check] Backup for for $1::$2" >> "$LOG"
+	if $(attic check -v "$BACKUP_HOST:$1.attic" >> "$LOG" 2>&1); then
+		echo "--- [Check] Completed successfully" >> "$LOG"
+		return 0
+	else
+		echo "--- [Check] Completed unsuccessfully" >> "$LOG"
+		let FAIL_COUNT+=1
+		return 1
+	fi
+}
+
+runBackups() {
+	local failed=0
+	echo "#### backupld - Starting ####" >> "$LOG"
+	for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
+		if createBackup "$dir" "${LOCAL_BACKUP_DIRS[$dir]}"; then
+			pruneBackup "$dir" "${LOCAL_BACKUP_DIRS[$dir]}"
+		fi
+	done
+	if [[ $(date +%u) -eq $BACKUP_CHECK_DAY ]]; then
+		echo "--- [Check] It's Sunday! Verifying consistency..." >> "$LOG"
+		for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
+			checkBackup "$dir" "${LOCAL_BACKUP_DIRS[$dir]}"
+		done
+	fi
+	if [[ "$FAIL_COUNT" -gt 0 ]]; then
+		echo "#### backupld - Unuccessful ####" >> "$LOG"
+	else
+		echo "#### backupld - Successful ####" >> "$LOG"
+	fi
+	for user in "${NOTIFY_USERS[@]}"; do
+		notifyUser "$(echo $user | cut -d';' -f1)" "$(echo $user | cut -d';' -f2)"
+	done
+	cp -f "$LOG" "/var/log/backupld-$TODAY_DATE-$FAIL_COUNT.log"
+	rm -rf "$LOG"
+	return $FAIL_COUNT
+}
+
+notifyUser() {
+	if [[ "$NOTIFY_TYPE" == "email" ]]; then
+		notifyByEmail "$1" "$2"
+	elif [[ "$NOTIFY_TYPE" == "file" ]]; then
+		notifyByFile "$1" "$2"
+	fi
+}
+
+notifyByEmail() {
+	local subject="$BACKUP_NAME, Failure Count $FAIL_COUNT"
+	local message="[backupld] Completed with failure count: $FAIL_COUNT. Log attached."
+	local fromName="backupld"
+	local fromAddress="backupld@$NOTIFY_FROM_DOMAIN"
+	local LOGb="$(cat $LOG | base64 -w 0)"
+	[[ "$NOTIFY_MESSAGE" ]] && message="$(messageMacrofier $NOTIFY_MESSAGE)"
+	[[ "$NOTIFY_EMAIL_SUBJECT" ]] && subject="$(messageMacrofier $NOTIFY_EMAIL_SUBJECT)"
+	if [[ "$NOTIFY_MANDRILL" ]]; then
+		local output=$(curl -s -A 'Mandrill-Curl/1.0' \
+			-d "{ \
+				\"key\": \"$NOTIFY_MANDRILL\", \
+				\"message\": { \
+					\"text\": \"$message\", \
+					\"subject\": \"$subject\", \
+					\"from_email\": \"$fromAddress\", \
+					\"from_name\": \"$fromName\", \
+					\"to\": [{\"name\": \"$1\", \"email\": \"$2\"}], \
+					\"attachments\": [ \
+						{\"type\": \"text/plain\", \"name\": \"$(basename $LOG)\", \"content\": \"$LOGb\"} \
+					] \
+				} \
+			}" \
+			'https://mandrillapp.com/api/1.0/messages/send.json'
+		)
+		if [[ ! $output =~ \"status\"\:\"queued\" ]]; then
+			echo "ERROR: Mandrill notifcation failed for: $1 <$2>." >> $LOG
+			echo "ERROR: $output" >> $LOG
+		fi
+	elif [[ "$NOTIFY_MAILGUN" ]]; then
+		local output=$(curl -s --user "api:$NOTIFY_MAILGUN" \
+			https://api.mailgun.net/v2/"$NOTIFY_MAILGUN_API_DOMAIN"/messages \
+			-F from="$fromName <$fromAddress>" \
+			-F to="$1 <$2>" \
+			-F subject="$subject" \
+			-F text="$content" \
+			-F attachment=@"$LOG" \
+			-F o:tag="backupld"
+		)
+		if [[ ! $output =~ \"message\"\:\ \"Queued\.\ Thank\ you\.\" ]]; then
+			echo "ERROR: Mailgun notifcation failed for: $1 <$2>." >> $LOG
+			echo "ERROR: $output" >> $LOG
+			let FAIL_COUNT+=1
+		fi
+	else
+		echo "Backupld: Could not find a valid API key."
+		let FAIL_COUNT+=1
+	fi
+}
+
+messageMacrofier() {
+	echo "$(echo $@ | m4 \
+		-D name="$BACKUP_NAME" \
+		-D date="$TODAY_DATE" \
+		-D fail_count="$FAIL_COUNT" \
+		- \
+	)"
+}
+
+runBackups

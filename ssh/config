@@ -1,0 +1,6 @@
+# This belongs at /home/user/.ssh/config
+Host backupld
+    HostName example.net
+    Port 22
+    User backupld
+    IdentityFile /home/user/.ssh/backupld
