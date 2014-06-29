@@ -10,7 +10,7 @@ title:            backupld
 tagline:          'LemonDigits.com'
 description:      'A backup framework based on <a href="https://attic-backup.org/" title="Attic">Attic</a>'
 url:              http://joeasaurus.github.io/backupld
-production_url:   http://joeasaurus.github.io
+production_url:   http://joeasaurus.github.io/backupld
 BASE_PATH:        http://joeasaurus.github.io/backupld
 
 github:
