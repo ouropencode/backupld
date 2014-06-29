@@ -1,0 +1,75 @@
+---
+layout: page
+title: Example
+---
+<p class="message">
+    You can view this raw at: <a href="https://raw.githubusercontent.com/Joeasaurus/backupld/master/backupld.conf">Github</a>
+</p>
+# Main settings<br/>
+#<br/>
+::BACKUP_<br/>
+	# Set the name of the archive that will get saved to each repo.<br/><br/>
+	# 'date' is a special name that will use the date in YYYYMMDD format<br/>
+    NAME = date<br/>
+	# The name of your remote host<br/>
+	# This should be set with an SSH key in your SSH 'config' file<br/>
+    HOST = someOtherServer<br/>
+	# The day of the week to run validity checks<br/>
+	# Uses $(date +%u) so numbers are (1..7); 1 is Monday<br/>
+    CHECK_DAY = 7<br/>
+<br/>
+# What do we care about?<br/>
+# In the format: repoName = /directory/to/backup<br/>
+#<br/>
+==LOCAL_BACKUP_DIRS<br/>
+    vhosts = /var/www/vhosts<br/>
+    git = /home/git<br/>
+    cron = /var/spool/cron<br/>
+<br/>
+# How often do we want to prune?<br/>
+# (How many to keep on each timescale)<br/>
+#<br/>
+# 'default' is the default setting for all repos.<br/>
+# For individual repo settings, use the name of the repo instead<br/>
+# If you don't set a repo specifically, it will use the default setting<br/>
+# If you don't set a default setting, no pruning is done on this timescale<br/>
+# Supports hourly, daily, weekly, monthly and yearly<br/>
+#<br/>
+==PRUNE_DAILY<br/>
+	default=7<br/>
+<br/>
+==PRUNE_WEEKLY<br/>
+	default=4<br/>
+<br/>
+==PRUNE_MONTHLY<br/>
+	default=6<br/>
+<br/>
+# How do we want to send notifications?<br/>
+#<br/>
+# 'email' is the only supported so far<br/>
+# This uses Mandrill or Mailgun, set your keys as so:<br/>
+# MANDIRLL = <key here> or<br/>
+# MAILGUN = <key here><br/>
+# with Mailgun, you also need to set the name of the api domain:<br/>
+# MAILGUN_API_DOMAIN = example.com<br/>
+#<br/>
+# FROM_DOMAIN is the domain of the sender: example.com<br/>
+# MESSAGE is the body of the email in text (no HTML)<br/>
+# EMAIL_SUBJECT is the subject of the email (amazing!)<br/>
+#<br/>
+# Both the message and subject support some macros:<br/>
+# 'name' will be changed to the name of the archive<br/>
+# 'date' is changed to the date from above: YYYYMMDD<br/>
+# 'fail_count' is changed to the failure count of the backups<br/>
+#<br/>
+::NOTIFY_<br/>
+    TYPE = email<br/>
+    MANDRILL = sajnDCSsSDCnkiaScERPO<<br/>
+    FROM_DOMAIN = example.com<br/>
+    MESSAGE = Completed with fail_count errors.<br/>
+    EMAIL_SUBJECT = [Daily name] Failure Count fail_count<br/>
+<br/>
+# Who should we tell?<br/>
+# In the format: Recipient Name;recipient@email.address<br/>
+--NOTIFY_USERS<br/>
+    Joe Eaves;joe@example.com<br/>
