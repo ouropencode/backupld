@@ -9,10 +9,10 @@ permalink:        pretty
 title:            backupld
 tagline:          'LemonDigits.com'
 description:      'A backup framework based on <a href="https://attic-backup.org/" title="Attic">Attic</a>'
-url:              http://joeasaurus.github.io/backupld
+url:              //joeasaurus.github.io/backupld
 baseurl:          /backupld
-production_url:   http://joeasaurus.github.io/backupld
-BASE_PATH:        http://joeasaurus.github.io/backupld
+production_url:   //joeasaurus.github.io/backupld
+BASE_PATH:        //joeasaurus.github.io/backupld
 
 github:
-  repo:           https://github.com/Joeasaurus/backupld
+  repo:           //github.com/Joeasaurus/backupld
