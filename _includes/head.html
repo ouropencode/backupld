@@ -44,7 +44,7 @@
     function getInfo() {
         var request = new XMLHttpRequest();
         request.onload = printRepoCount;
-        request.open('get', "//api.github.com/repos/{{site.github.owner_url}}/backupld/releases", true)
+        request.open('get', "//api.github.com/repos/{{site.github.owner_name}}/backupld/releases", true)
         request.send()
     }
 
