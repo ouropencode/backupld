@@ -14,9 +14,9 @@
   </title>
 
   <!-- CSS -->
-  <link rel="stylesheet" href="{{site.url}}/public/css/poole.css">
-  <link rel="stylesheet" href="{{site.url}}/public/css/syntax.css">
-  <link rel="stylesheet" href="{{site.url}}/public/css/hyde.css">
+  <link rel="stylesheet" href="{{github.site.url}}/public/css/poole.css">
+  <link rel="stylesheet" href="{{github.site.url}}/public/css/syntax.css">
+  <link rel="stylesheet" href="{{github.site.url}}/public/css/hyde.css">
   <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=PT+Sans:400,400italic,700|Abril+Fatface">
 
   <!-- Icons -->
@@ -44,7 +44,7 @@
     function getInfo() {
         var request = new XMLHttpRequest();
         request.onload = printRepoCount;
-        request.open('get', 'https://api.github.com/repos/joeasaurus/backupld/releases', true)
+        request.open('get', '{{github.site.releases_url}}', true)
         request.send()
     }
 
