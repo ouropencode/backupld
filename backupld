@@ -85,7 +85,7 @@ runBackups() {
 		fi
 	done
 	if [[ $(date +%u) -eq $BACKUP_CHECK_DAY ]]; then
-		echo "--- [Check] It's Sunday! Verifying consistency..." >> "$LOG"
+		echo "--- [Check] It's $(date +%A)! Verifying consistency..." >> "$LOG"
 		for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
 			checkBackup "$dir" "${LOCAL_BACKUP_DIRS[$dir]}"
 		done
