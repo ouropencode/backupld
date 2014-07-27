@@ -166,16 +166,18 @@ notifyByEmail() {
 }
 
 notifyByPushover() {
+	local message="$FAIL_COUNT errors occured"
+	[[ "$NOTIFY_MESSAGE" ]] && message="$(messageMacrofier $NOTIFY_MESSAGE)"
 	if [[ "$NOTIFY_PUSHOVER_API_KEY" ]]; then
 		local apiKey="$NOTIFY_PUSHOVER_API_KEY"
 		if [[ "$NOTIFY_PUSHOVER_USER_KEY" ]]; then
 			local userKey="$NOTIFY_PUSHOVER_USER_KEY"
 			local output=$(curl -s \
 				https://api.pushover.net/1/messages.json \
-				-F "token=${apiKey}" \
-				-F "user=${userKey}" \
+				-F "token=$apiKey" \
+				-F "user=$userKey" \
 				-F "title=[backupld] Complete" \
-				-F "message=$FAIL_COUNT errors occured" \
+				-F "message=$message" \
 			)
 			if [[ ! $output =~ \"status\"\:\ ?1 ]]; then
 				echo "ERROR: Pushover notifcation failed." >> $LOG
