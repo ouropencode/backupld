@@ -77,7 +77,6 @@ checkBackup() {
 }
 
 runBackups() {
-	local failed=0
 	echo "#### backupld - Starting ####" >> "$LOG"
 	for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
 		if createBackup "$dir" "${LOCAL_BACKUP_DIRS[$dir]}"; then
@@ -95,19 +94,24 @@ runBackups() {
 	else
 		echo "#### backupld - Successful ####" >> "$LOG"
 	fi
-	for user in "${NOTIFY_USERS[@]}"; do
-		notifyUser "$(echo $user | cut -d';' -f1)" "$(echo $user | cut -d';' -f2)"
-	done
+
+	notifyUsers
 	cp -f "$LOG" "/var/log/backupld-$TODAY_DATE-$FAIL_COUNT.log"
 	rm -rf "$LOG"
 	return $FAIL_COUNT
 }
 
-notifyUser() {
+notifyUsers() {
 	if [[ "$NOTIFY_TYPE" == "email" ]]; then
-		notifyByEmail "$1" "$2"
+		for user in "${NOTIFY_USERS[@]}"; do
+			notifyByEmail "$(echo $user | cut -d';' -f1)" "$(echo $user | cut -d';' -f2)"
+		done
+	elif [[ "$NOTIFY_TYPE" == "pushover" ]]; then
+		notifyByPushover
 	elif [[ "$NOTIFY_TYPE" == "file" ]]; then
-		notifyByFile "$1" "$2"
+		for user in "${NOTIFY_USERS[@]}"; do
+			notifyByFile "$user"
+		done
 	fi
 }
 
@@ -157,6 +161,35 @@ notifyByEmail() {
 		fi
 	else
 		echo "Backupld: Could not find a valid API key."
+		let FAIL_COUNT+=1
+	fi
+}
+
+notifyByPushover() {
+	local message="$FAIL_COUNT errors occured"
+	[[ "$NOTIFY_MESSAGE" ]] && message="$(messageMacrofier $NOTIFY_MESSAGE)"
+	if [[ "$NOTIFY_PUSHOVER_API_KEY" ]]; then
+		local apiKey="$NOTIFY_PUSHOVER_API_KEY"
+		if [[ "$NOTIFY_PUSHOVER_USER_KEY" ]]; then
+			local userKey="$NOTIFY_PUSHOVER_USER_KEY"
+			local output=$(curl -s \
+				https://api.pushover.net/1/messages.json \
+				-F "token=$apiKey" \
+				-F "user=$userKey" \
+				-F "title=[backupld] Complete" \
+				-F "message=$message" \
+			)
+			if [[ ! $output =~ \"status\"\:\ ?1 ]]; then
+				echo "ERROR: Pushover notifcation failed." >> $LOG
+				echo "ERROR: $output" >> $LOG
+				let FAIL_COUNT+=1
+			fi
+		else
+			echo "ERROR: No Pushover user key" >> $LOG
+			let FAIL_COUNT+=1
+		fi
+	else
+		echo "ERROR: No Pushover API key" >> $LOG
 		let FAIL_COUNT+=1
 	fi
 }
