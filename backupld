@@ -18,7 +18,7 @@ fi
 # Logic
 createBackup() {
 	echo "--- [Create] Backup for $1::$2" | printMessage
-	attic create -v --stats "$BACKUP_HOST:$1.attic::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
+	attic create --stats "$BACKUP_HOST:$1.attic::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Create] Completed successfully" | printMessage
@@ -57,7 +57,7 @@ pruneBackup() {
 	[[ "${PRUNE_YEARLY[$1]}" ]] && yearly="-y ${PRUNE_YEARLY[$1]}"
 	[[ "${yearly: -1}" -eq 0 ]] && yearly=
 	keeps="$keeps $yearly"
-	attic prune --stats "$BACKUP_HOST:$1.attic" $keeps 2>&1 | printMessage
+	attic prune --stats -v "$BACKUP_HOST:$1.attic" $keeps 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Prune] Completed successfully" | printMessage
@@ -71,7 +71,7 @@ pruneBackup() {
 
 checkBackup() {
 	echo "--- [Check $(date +%A)] Backup for $1::$2" | printMessage
-	attic check -v "$BACKUP_HOST:$1.attic" 2>&1 | printMessage
+	attic check --stats "$BACKUP_HOST:$1.attic" 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Check] Completed successfully" | printMessage
@@ -98,7 +98,7 @@ runBackups() {
 		if checkEncryption "$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $2}')"; then
 			echo "--- ...enabled encryption..." | printMessage
 		elif [[ -n "$ATTIC_PASSPHRASE" ]]; then
-			export ATTIC_PASSPHRASE=
+			export ATTIC_PASSPHRASE= # Can we use 'unset' here?
 			echo "--- ...disabled encryption..." | printMessage
 		fi
 		if createBackup "$dir" "$dirPath"; then
@@ -147,22 +147,27 @@ notifyByEmail() {
 	[[ "$NOTIFY_MESSAGE" ]] && message="$(messageMacrofier $NOTIFY_MESSAGE)"
 	[[ "$NOTIFY_EMAIL_SUBJECT" ]] && subject="$(messageMacrofier $NOTIFY_EMAIL_SUBJECT)"
 	if [[ "$NOTIFY_MANDRILL" ]]; then
+		local tmpOut="$(mktemp /tmp/XXXXX)"
+		cat > "$tmpOut" <<ENDOFOUT
+{
+ "key": "$NOTIFY_MANDRILL",
+ "message": {
+  "text": "$message",
+  "subject": "$subject",
+  "from_email": "$fromAddress",
+  "from_name": "$fromName",
+  "to": [{"name": "$1", "email": "$2"}],
+  "attachments": [
+   {"type": "text/plain", "name": "$(basename $LOG)", "content": "$LOGb"} \
+  ]
+ }
+}
+ENDOFOUT
 		local output=$(curl -s -A 'Mandrill-Curl/1.0' \
-			-d "{ \
-				\"key\": \"$NOTIFY_MANDRILL\", \
-				\"message\": { \
-					\"text\": \"$message\", \
-					\"subject\": \"$subject\", \
-					\"from_email\": \"$fromAddress\", \
-					\"from_name\": \"$fromName\", \
-					\"to\": [{\"name\": \"$1\", \"email\": \"$2\"}], \
-					\"attachments\": [ \
-						{\"type\": \"text/plain\", \"name\": \"$(basename $LOG)\", \"content\": \"$LOGb\"} \
-					] \
-				} \
-			}" \
+			-d @"$tmpOut" \
 			'https://mandrillapp.com/api/1.0/messages/send.json'
 		)
+		rm -f "$tmpOut"
 		if [[ ! $output =~ \"status\"\:\"queued\" ]]; then
 			echo "ERROR: Mandrill notifcation failed for: $1 <$2>." | printMessage
 			echo "ERROR: $output" | printMessage
