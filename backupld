@@ -18,7 +18,7 @@ fi
 # Logic
 createBackup() {
 	echo "--- [Create] Backup for $1::$2" | printMessage
-	attic create -v --stats "$BACKUP_HOST:$1.attic::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
+	attic create -v "$BACKUP_HOST:$1.attic::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Create] Completed successfully" | printMessage
@@ -57,7 +57,7 @@ pruneBackup() {
 	[[ "${PRUNE_YEARLY[$1]}" ]] && yearly="-y ${PRUNE_YEARLY[$1]}"
 	[[ "${yearly: -1}" -eq 0 ]] && yearly=
 	keeps="$keeps $yearly"
-	attic prune --stats "$BACKUP_HOST:$1.attic" $keeps 2>&1 | printMessage
+	attic prune "$BACKUP_HOST:$1.attic" $keeps 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Prune] Completed successfully" | printMessage
@@ -98,7 +98,7 @@ runBackups() {
 		if checkEncryption "$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $2}')"; then
 			echo "--- ...enabled encryption..." | printMessage
 		elif [[ -n "$ATTIC_PASSPHRASE" ]]; then
-			export ATTIC_PASSPHRASE=
+			export ATTIC_PASSPHRASE= # Can we use 'unset' here?
 			echo "--- ...disabled encryption..." | printMessage
 		fi
 		if createBackup "$dir" "$dirPath"; then
