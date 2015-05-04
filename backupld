@@ -5,15 +5,22 @@
 # Dependencies / Setup
 set -o pipefail
 . cpfb
+messageMacrofier() {
+	echo "$(echo $@ | m4 \
+		-D name="$BACKUP_NAME" \
+		-D date="$TODAY_DATE" \
+		-D fail_count="$FAIL_COUNT" \
+		- \
+	)"
+}
+
 TODAY_DATE="$(date +%Y%m%d)"
 FAIL_COUNT=0
 LOG="$(mktemp /tmp/backupld_XXXXX)"
 parseConfig "$1" || let FAIL_COUNT+=1
 
 # Check backup_name specials
-if [[ "$BACKUP_NAME" == "date" ]]; then
-	BACKUP_NAME="$TODAY_DATE"
-fi
+BACKUP_NAME="$(messageMacrofier $BACKUP_NAME)"
 
 # Logic
 createBackup() {
@@ -71,7 +78,7 @@ pruneBackup() {
 
 checkBackup() {
 	echo "--- [Check $(date +%A)] Backup for $1::$2" | printMessage
-	attic check --stats "$BACKUP_HOST:$1.attic" 2>&1 | printMessage
+	attic check "$BACKUP_HOST:$1.attic" 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Check] Completed successfully" | printMessage
@@ -93,6 +100,7 @@ checkEncryption() {
 
 runBackups() {
 	echo "#### backupld - Starting ####" | printMessage
+	echo -en "\n" | printMessage
 	for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
 		local dirPath="$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $1}')"
 		if checkEncryption "$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $2}')"; then
@@ -106,6 +114,7 @@ runBackups() {
 			if [[ $(date +%u) -eq $BACKUP_CHECK_DAY ]]; then
 				checkBackup "$dir" "$dirPath"
 			fi
+			echo -en "\n" | printMessage
 		fi
 	done
 	if [[ "$FAIL_COUNT" -gt 0 ]]; then
@@ -237,15 +246,6 @@ printMessage() {
 		fi
 		echo "$message" >> "$LOG"
 	done
-}
-
-messageMacrofier() {
-	echo "$(echo $@ | m4 \
-		-D name="$BACKUP_NAME" \
-		-D date="$TODAY_DATE" \
-		-D fail_count="$FAIL_COUNT" \
-		- \
-	)"
 }
 
 runBackups
