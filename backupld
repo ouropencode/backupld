@@ -101,6 +101,8 @@ checkEncryption() {
 runBackups() {
 	echo "#### backupld - Starting ####" | printMessage
 	echo -en "\n" | printMessage
+
+	## Directory backups with Attic
 	for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
 		local dirPath="$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $1}')"
 		if checkEncryption "$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $2}')"; then
@@ -117,6 +119,12 @@ runBackups() {
 			echo -en "\n" | printMessage
 		fi
 	done
+
+	## MySQL dumps
+	for database in "${!MYSQL_DBS[@]}"; do
+		echo "$database - ${MYSQL_DBS[$database]}"
+	done
+
 	if [[ "$FAIL_COUNT" -gt 0 ]]; then
 		echo "#### backupld - Unuccessful ####" | printMessage
 	else
