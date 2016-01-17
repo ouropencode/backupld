@@ -90,6 +90,14 @@ checkBackup() {
 	fi
 }
 
+restoreBackup() {
+	local timestamp="latest" # Can be $1 or something in future!
+}
+
+listArchives() {
+        attic list "$BACKUP_HOST:$1.attic" 2>&1
+}
+
 checkEncryption() {
 	if [[ -n "$1" ]]; then
 		export ATTIC_PASSPHRASE="$1"
@@ -248,4 +256,9 @@ printMessage() {
 	done
 }
 
-runBackups
+echo $@
+if [[ "$2" == "list" ]]; then
+	listArchives "$3"
+else
+	runBackups
+fi
