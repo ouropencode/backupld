@@ -100,8 +100,27 @@ checkBackup() {
 	fi
 }
 
-restoreBackup() {
+extractBackup() {
 	local timestamp="latest" # Can be $1 or something in future!
+	local reponame="$1"
+
+	echo "--- [Extract] $reponame::$timestamp" | printMessage
+	if [[ "$timestamp" == "latest" ]]; then
+		local archivename="$(listArchives $reponame | tail -n 1 | awk '{print $1}')"
+	fi
+
+	echo "--- ...found $archivename..." | printMessage
+	attic extract "$BACKUP_HOST:$1.attic::$archivename" 2>&1 | printMessage
+	exitCode=$?
+	if [[ $exitCode -eq 0 ]]; then
+		echo "--- [Extract] Completed successfully" | printMessage
+	else
+		echo "--- [Extract] Completed unsuccessfully" | printMessage
+		let FAIL_COUNT+=1
+	fi
+
+	notifyUsers
+	return $FAIL_COUNT
 }
 
 listArchives() {
@@ -184,8 +203,6 @@ runBackups() {
 	else
 		echo "#### backupld - Successful ####" | printMessage
 	fi
-
-	notifyUsers
 
 	# Cleanup
 	return $FAIL_COUNT
@@ -309,9 +326,10 @@ printMessage() {
 	done
 }
 
-echo $@
 if [[ "$2" == "list" ]]; then
 	listArchives "$3"
+elif [[ "$2" == "extract" ]]; then
+	extractBackup "$3"
 else
 	runBackups
 fi
