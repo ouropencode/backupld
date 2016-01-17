@@ -20,6 +20,8 @@ LOG="$(mktemp /tmp/backupld_XXXXX)"
 MYSQL_OUTPUT="$(mktemp -d /tmp/backupld.mysql.XXXX)"
 MYSQL_CONF="$MYSQL_OUTPUT/.my.cnf"
 parseConfig "$1" || let FAIL_COUNT+=1
+# Make sure this exists, even if missing from the config.
+declare -A LOCAL_BACKUP_DIRS
 
 # Check backup_name specials
 BACKUP_NAME="$(messageMacrofier $BACKUP_NAME)"
