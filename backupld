@@ -17,10 +17,20 @@ messageMacrofier() {
 TODAY_DATE="$(date +%Y%m%d)"
 FAIL_COUNT=0
 LOG="$(mktemp /tmp/backupld_XXXXX)"
+MYSQL_OUTPUT="$(mktemp -d /tmp/backupld.mysql.XXXX)"
+MYSQL_CONF="$MYSQL_OUTPUT/.my.cnf"
 parseConfig "$1" || let FAIL_COUNT+=1
+# Make sure this exists, even if missing from the config.
+declare -A LOCAL_BACKUP_DIRS
 
 # Check backup_name specials
 BACKUP_NAME="$(messageMacrofier $BACKUP_NAME)"
+
+function finish {
+  rm -rf "$MYSQL_OUTPUT"
+  rm -rf "$LOG"
+}
+trap finish EXIT
 
 # Logic
 createBackup() {
@@ -90,8 +100,27 @@ checkBackup() {
 	fi
 }
 
-restoreBackup() {
+extractBackup() {
 	local timestamp="latest" # Can be $1 or something in future!
+	local reponame="$1"
+
+	echo "--- [Extract] $reponame::$timestamp" | printMessage
+	if [[ "$timestamp" == "latest" ]]; then
+		local archivename="$(listArchives $reponame | tail -n 1 | awk '{print $1}')"
+	fi
+
+	echo "--- ...found $archivename..." | printMessage
+	attic extract "$BACKUP_HOST:$1.attic::$archivename" 2>&1 | printMessage
+	exitCode=$?
+	if [[ $exitCode -eq 0 ]]; then
+		echo "--- [Extract] Completed successfully" | printMessage
+	else
+		echo "--- [Extract] Completed unsuccessfully" | printMessage
+		let FAIL_COUNT+=1
+	fi
+
+	notifyUsers
+	return $FAIL_COUNT
 }
 
 listArchives() {
@@ -106,9 +135,52 @@ checkEncryption() {
 	return 1
 }
 
+dumpDatabase() {
+	local splitString
+	IFS=';' read -a splitString <<< "$2"
+	local hostname="${splitString[0]}"
+	echo "--- [DBDump $(date +%A)] Backup for $hostname::$1" | printMessage
+	cat > "$MYSQL_CONF" <<ENDOFCNF
+[mysqldump]
+user=${splitString[1]}
+password=${splitString[2]}
+#no-create-db=TRUE
+#skip-comments=TRUE
+#disable-keys=TRUE
+add-drop-table=TRUE
+#complete-insert=FALSE
+extended-insert=TRUE
+#skip-add-locks=TRUE
+lock-tables=FALSE
+single-transaction=TRUE
+routines=TRUE
+triggers=TRUE
+log-error="$LOG"
+dump-date=TRUE
+quote-names=TRUE
+ENDOFCNF
+	# Now lets run the thing!
+	if mysqldump --defaults-file="$MYSQL_CONF" -h "$hostname" "$1" > "$MYSQL_OUTPUT/$hostname.$1.sql"; then
+		ret=0
+	else
+		let FAIL_COUNT+=1
+		ret=1
+	fi
+	rm -rf "$MYSQL_CONF"
+	return $ret
+}
+
 runBackups() {
 	echo "#### backupld - Starting ####" | printMessage
+
+	## MySQL dumps
+	for database in "${!MYSQL_DBS[@]}"; do
+		dumpDatabase "$database" "${MYSQL_DBS[$database]}"
+		LOCAL_BACKUP_DIRS["mysql"]="$MYSQL_OUTPUT"
+	done
 	echo -en "\n" | printMessage
+
+	## Directory backups with Attic
 	for dir in "${!LOCAL_BACKUP_DIRS[@]}"; do
 		local dirPath="$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $1}')"
 		if checkEncryption "$(echo ${LOCAL_BACKUP_DIRS[$dir]} | awk -F';' '{print $2}')"; then
@@ -125,13 +197,12 @@ runBackups() {
 			echo -en "\n" | printMessage
 		fi
 	done
+
 	if [[ "$FAIL_COUNT" -gt 0 ]]; then
 		echo "#### backupld - Unuccessful ####" | printMessage
 	else
 		echo "#### backupld - Successful ####" | printMessage
 	fi
-
-	notifyUsers
 
 	# Cleanup
 	return $FAIL_COUNT
@@ -242,7 +313,6 @@ notifyByPushover() {
 notifyByFile() {
 	if [[ "$2" ]]; then
 		cp -f "$LOG" "$2"
-		rm -rf "$LOG"
 	fi
 }
 
@@ -256,9 +326,10 @@ printMessage() {
 	done
 }
 
-echo $@
 if [[ "$2" == "list" ]]; then
 	listArchives "$3"
+elif [[ "$2" == "extract" ]]; then
+	extractBackup "$3"
 else
 	runBackups
 fi
