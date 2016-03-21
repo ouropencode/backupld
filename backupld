@@ -9,6 +9,7 @@ messageMacrofier() {
 	echo "$(echo $@ | m4 \
 		-D name="$BACKUP_NAME" \
 		-D date="$TODAY_DATE" \
+		-D timestamp="$TIMESTAMP" \
 		-D fail_count="$FAIL_COUNT" \
 		- \
 	)"
@@ -206,6 +207,7 @@ runBackups() {
 	fi
 
 	# Cleanup
+	notifyUsers
 	return $FAIL_COUNT
 }
 
