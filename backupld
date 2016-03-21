@@ -15,6 +15,7 @@ messageMacrofier() {
 }
 
 TODAY_DATE="$(date +%Y%m%d)"
+TIMESTAMP="$(date +%s)"
 FAIL_COUNT=0
 LOG="$(mktemp /tmp/backupld_XXXXX)"
 MYSQL_OUTPUT="$(mktemp -d /tmp/backupld.mysql.XXXX)"
@@ -262,11 +263,11 @@ ENDOFOUT
 		fi
 	elif [[ "$NOTIFY_MAILGUN" ]]; then
 		local output=$(curl -s --user "api:$NOTIFY_MAILGUN" \
-			https://api.mailgun.net/v2/"$NOTIFY_MAILGUN_API_DOMAIN"/messages \
+			https://api.mailgun.net/v3/"$NOTIFY_MAILGUN_API_DOMAIN"/messages \
 			-F from="$fromName <$fromAddress>" \
 			-F to="$1 <$2>" \
 			-F subject="$subject" \
-			-F text="$content" \
+			-F text="$message" \
 			-F attachment=@"$LOG" \
 			-F o:tag="backupld"
 		)
