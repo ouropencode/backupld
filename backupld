@@ -210,6 +210,13 @@ runBackups() {
 		fi
 	done
 
+	if [[ -n "$BACKUP_POST_HOOK" ]]; then
+		echo "--- [PostHook $BACKUP_NAME] Calling $BACKUP_POST_HOOK" | printMessage
+		$BACKUP_POST_HOOK | printMessage
+		echo "--- [PostHook $BACKUP_NAME] Complete" | printMessage
+		let FAIL_COUNT+=$?
+	fi
+
 	if [[ "$FAIL_COUNT" -gt 0 ]]; then
 		echo "#### backupld - Unuccessful ####" | printMessage
 	else
