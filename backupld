@@ -18,7 +18,7 @@ messageMacrofier() {
 TODAY_DATE="$(date +%Y%m%d)"
 TIMESTAMP="$(date +%s)"
 FAIL_COUNT=0
-LOG="$(mktemp /tmp/backupld_XXXXX).txt"
+LOG="$(mktemp /tmp/backupld_XXXXX)"
 MYSQL_OUTPUT="$(mktemp -d /tmp/backupld.mysql.XXXX)"
 MYSQL_CONF="$MYSQL_OUTPUT/.my.cnf"
 parseConfig "$1" || let FAIL_COUNT+=1
@@ -27,6 +27,7 @@ declare -A LOCAL_BACKUP_DIRS
 
 # Check backup_name specials
 BACKUP_NAME="$(messageMacrofier $BACKUP_NAME)"
+[[ -n "$BACKUP_STORE" ]] && mkdir -p "$BACKUP_STORE"
 
 function finish {
   rm -rf "$MYSQL_OUTPUT"
@@ -34,10 +35,18 @@ function finish {
 }
 trap finish EXIT
 
+getArchiveString() {
+	if [[ -n "$BACKUP_HOST" ]]; then
+		echo "$BACKUP_HOST:$1.attic"
+	else
+		echo "$BACKUP_STORE/$1.attic"
+	fi
+}
+
 # Logic
 createBackup() {
 	echo "--- [Create] Backup for $1::$2" | printMessage
-	attic create --stats "$BACKUP_HOST:$1.attic::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
+	attic create --stats "$(getArchiveString $1)::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Create] Completed successfully" | printMessage
@@ -76,7 +85,7 @@ pruneBackup() {
 	[[ "${PRUNE_YEARLY[$1]}" ]] && yearly="-y ${PRUNE_YEARLY[$1]}"
 	[[ "${yearly: -1}" -eq 0 ]] && yearly=
 	keeps="$keeps $yearly"
-	attic prune --stats -v "$BACKUP_HOST:$1.attic" $keeps 2>&1 | printMessage
+	attic prune --stats -v "$(getArchiveString $1)" $keeps 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Prune] Completed successfully" | printMessage
@@ -90,7 +99,7 @@ pruneBackup() {
 
 checkBackup() {
 	echo "--- [Check $(date +%A)] Backup for $1::$2" | printMessage
-	attic check "$BACKUP_HOST:$1.attic" 2>&1 | printMessage
+	attic check "$(getArchiveString $1)" 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Check] Completed successfully" | printMessage
@@ -112,7 +121,7 @@ extractBackup() {
 	fi
 
 	echo "--- ...found $archivename..." | printMessage
-	attic extract "$BACKUP_HOST:$1.attic::$archivename" 2>&1 | printMessage
+	attic extract "$(getArchiveString $reponame)::$archivename" 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Extract] Completed successfully" | printMessage
@@ -126,7 +135,7 @@ extractBackup() {
 }
 
 listArchives() {
-        attic list "$BACKUP_HOST:$1.attic" 2>&1
+        attic list "$(getArchiveString $1)" 2>&1
 }
 
 checkEncryption() {
@@ -138,6 +147,7 @@ checkEncryption() {
 }
 
 dumpDatabase() {
+	mkdir -p "$MYSQL_OUTPUT/$database"
 	local splitString
 	IFS=';' read -a splitString <<< "$2"
 	local hostname="${splitString[0]}"
@@ -162,7 +172,7 @@ dump-date=TRUE
 quote-names=TRUE
 ENDOFCNF
 	# Now lets run the thing!
-	if mysqldump --defaults-file="$MYSQL_CONF" -h "$hostname" "$1" > "$MYSQL_OUTPUT/$hostname.$1.sql"; then
+	if mysqldump --defaults-file="$MYSQL_CONF" -h "$hostname" "$1" > "$MYSQL_OUTPUT/$database/$hostname.$1.sql"; then
 		ret=0
 	else
 		let FAIL_COUNT+=1
@@ -178,7 +188,7 @@ runBackups() {
 	## MySQL dumps
 	for database in "${!MYSQL_DBS[@]}"; do
 		dumpDatabase "$database" "${MYSQL_DBS[$database]}"
-		LOCAL_BACKUP_DIRS["mysql"]="$MYSQL_OUTPUT"
+		LOCAL_BACKUP_DIRS["$database"]="$MYSQL_OUTPUT/$database"
 	done
 	echo -en "\n" | printMessage
 
@@ -234,26 +244,67 @@ notifyByEmail() {
 	local message="[backupld] Completed with failure count: $FAIL_COUNT. Log attached."
 	local fromName="backupld"
 	local fromAddress="backupld@$NOTIFY_FROM_DOMAIN"
+
 	local LOGb="$(cat $LOG | base64 -w 0)"
 	[[ "$NOTIFY_MESSAGE" ]] && message="$(messageMacrofier $NOTIFY_MESSAGE)"
 	[[ "$NOTIFY_EMAIL_SUBJECT" ]] && subject="$(messageMacrofier $NOTIFY_EMAIL_SUBJECT)"
-	if [[ "$NOTIFY_MANDRILL" ]]; then
+
+	if [[ "$NOTIFY_SENDGRID" ]]; then
 		local tmpOut="$(mktemp /tmp/XXXXX)"
 		cat > "$tmpOut" <<ENDOFOUT
-{
- "key": "$NOTIFY_MANDRILL",
- "message": {
-  "text": "$message",
-  "subject": "$subject",
-  "from_email": "$fromAddress",
-  "from_name": "$fromName",
-  "to": [{"name": "$1", "email": "$2"}],
-  "attachments": [
-   {"type": "text/plain", "name": "$(basename $LOG)", "content": "$LOGb"} \
-  ]
- }
-}
+			{
+				"personalizations": [
+					{
+						"to": [
+							{"name": "$1", "email": "$2"}
+						],
+						"subject": "$subject"
+					}
+				],
+				"from": {
+					"name": "$fromName",
+					"email": "$fromAddress"
+				},
+				"content": [
+					{
+						"type": "text",
+						"value": "$message\n"
+					}
+				],
+				"attachments": [
+					{"type": "application/octet-stream", "filename": "$(basename $LOG).txt", "content": "$LOGb"}
+				]
+			}
 ENDOFOUT
+		local output=$(curl -s -X "POST" \
+			-H "Authorization: Bearer $NOTIFY_SENDGRID" \
+			-H "Content-Type: application/json" \
+			-d @"$tmpOut" \
+			'https://api.sendgrid.com/v3/mail/send'
+		)
+		rm -f "$tmpOut"
+		echo $output
+		if [[ -n "$output" ]]; then
+			echo "ERROR: SendGrid notifcation failed for: $1 <$2>." | printMessage
+			echo "ERROR: $output" | printMessage
+		fi
+	elif [[ "$NOTIFY_MANDRILL" ]]; then
+		local tmpOut="$(mktemp /tmp/XXXXX)"
+		cat > "$tmpOut" <<-ENDOFOUT
+			{
+				"key": "$NOTIFY_MANDRILL",
+				"message": {
+					"text": "$message",
+					"subject": "$subject",
+					"from_email": "$fromAddress",
+					"from_name": "$fromName",
+					"to": [{"name": "$1", "email": "$2"}],
+					"attachments": [
+						{"type": "text/plain", "name": "$(basename $LOG).txt", "content": "$LOGb"}
+					]
+				}
+			}
+		ENDOFOUT
 		local output=$(curl -s -A 'Mandrill-Curl/1.0' \
 			-d @"$tmpOut" \
 			'https://mandrillapp.com/api/1.0/messages/send.json'
@@ -263,6 +314,7 @@ ENDOFOUT
 			echo "ERROR: Mandrill notifcation failed for: $1 <$2>." | printMessage
 			echo "ERROR: $output" | printMessage
 		fi
+
 	elif [[ "$NOTIFY_MAILGUN" ]]; then
 		local output=$(curl -s --user "api:$NOTIFY_MAILGUN" \
 			https://api.mailgun.net/v3/"$NOTIFY_MAILGUN_API_DOMAIN"/messages \
@@ -278,6 +330,7 @@ ENDOFOUT
 			echo "ERROR: $output" | printMessage
 			let FAIL_COUNT+=1
 		fi
+
 	else
 		echo "Backupld: Could not find a valid API key."
 		let FAIL_COUNT+=1
