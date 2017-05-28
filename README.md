@@ -2,7 +2,7 @@ backupld
 ====
 
 ## What?
-Backup framework for LemonDigits.com. Requires [Attic](https://attic-backup.org/).
+Backup framework, requires [Attic](https://attic-backup.org/).
 
 ## How?
 Attic is a great tool that does all the magic we need, but you have to run it with certain configuration options on the command line. Rather than specify these in a crontab and flood it with multiple entries for all the different tweaks we might want to do, I wrote a wrapper script to do it. 
