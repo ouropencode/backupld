@@ -18,8 +18,8 @@ messageMacrofier() {
 TODAY_DATE="$(date +%Y%m%d)"
 TIMESTAMP="$(date +%s)"
 FAIL_COUNT=0
-LOG="$(mktemp /tmp/backupld_XXXXX)"
-MYSQL_OUTPUT="$(mktemp -d /tmp/backupld.mysql.XXXX)"
+LOG="$(mktemp /tmp/backupld_XXXXXX)"
+MYSQL_OUTPUT="$(mktemp -d /tmp/backupld.mysql.XXXXXX)"
 MYSQL_CONF="$MYSQL_OUTPUT/.my.cnf"
 parseConfig "$1" || let FAIL_COUNT+=1
 # Make sure this exists, even if missing from the config.
