@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 LOCK_FILE="$HOME/.hook-lock"
-LOG_FILE="$(mktemp /tmp/XXXX)"
+LOG_FILE="$(mktemp /tmp/XXXXXX)"
 log() {
 	echo "$@" >> "$LOG_FILE"
 }
