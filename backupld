@@ -45,8 +45,10 @@ getArchiveString() {
 
 # Logic
 createBackup() {
+	local archive_string="$(getArchiveString $1)"
 	echo "--- [Create] Backup for $1::$2" | printMessage
-	attic create --stats "$(getArchiveString $1)::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
+	[[ ! -e "$archive_string" ]] && attic init "$archive_string"
+	attic create --stats "$archive_string::$BACKUP_NAME" "$2" --exclude .forever --exclude tmp 2>&1 | printMessage
 	exitCode=$?
 	if [[ $exitCode -eq 0 ]]; then
 		echo "--- [Create] Completed successfully" | printMessage
