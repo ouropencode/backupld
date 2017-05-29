@@ -7,7 +7,7 @@ Backup framework, requires [Attic](https://attic-backup.org/)
 ## How?
 Attic is a great tool that does all the magic we need, but you have to run it with certain configuration options on the command line. Rather than specify these in a crontab and flood it with multiple entries for all the different tweaks we might want to do, I wrote a wrapper script to do it.
 
-The aim of this program is to provide functionality and configurability to the backup jobs on top of that which Attic provides. This includes a more detailed log file, weekly validity checks and email notifications. It's also written to depend on the use of SSH keys when connecting to the remote host (where the backups are stored), to keep your data safe.
+The aim of this program is to provide functionality and configurability to the backup jobs on top of that which Attic provides. This includes a more detailed log file, weekly validity checks and email notifications. 909It's also written to depend on the use of SSH keys when connecting to the remote host (where the backups are stored), to keep your data safe.
 
 ## To install
 Dependencies:
