@@ -151,7 +151,7 @@ dumpDatabase() {
 	local splitString
 	IFS=';' read -a splitString <<< "$2"
 	local hostname="${splitString[0]}"
-	echo "--- [DBDump $(date +%A)] Backup for $hostname::$1" | printMessage
+	echo "--- [DBDump $BACKUP_NAME] Backup for $hostname::$1" | printMessage
 	cat > "$MYSQL_CONF" <<ENDOFCNF
 [mysqldump]
 user=${splitString[1]}
